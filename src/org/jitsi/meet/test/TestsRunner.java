@@ -16,8 +16,6 @@
 package org.jitsi.meet.test;
 
 import junit.framework.*;
-import org.junit.runner.*;
-import org.junit.runners.*;
 
 import java.io.*;
 import java.lang.reflect.*;
@@ -27,101 +25,200 @@ import java.util.*;
  * The main test suite which will order tests.
  * @author Damian Minkov
  */
-@RunWith(AllTests.class)
 public class TestsRunner
 {
     /**
-     * The tests that are currently started.
-     * If the property jitsi-meet.tests.toRun exists we use its values to
-     * add only the tests mentioned in it.
-     * @return tests that are currently started.
+     * The name of the property which controls the list of tests to be run.
      */
-    public static TestSuite suite()
+    private static final String TESTS_TO_RUN_PNAME = "jitsi-meet.tests.toRun";
+
+    /**
+     * The name of the property which controls the set of tests to be excluded
+     * (i.e. not run).
+     */
+    private static final String TESTS_TO_EXCLUDE_PNAME
+            = "jitsi-meet.tests.toExclude";
+
+    /**
+     * The default list of tests to run. This does not include SetupConference
+     * and DisposeConference; they will be added separately.
+     *
+     * The list contains class names relative to this class' package.
+     */
+    private static final List<String> DEFAULT_TESTS_TO_RUN
+            = new LinkedList<String>();
+
+    static
     {
-        TestSuite suite = new TestSuite();
+        DEFAULT_TESTS_TO_RUN.add(AvatarTest.class.getSimpleName());
+        DEFAULT_TESTS_TO_RUN.add(MuteTest.class.getSimpleName());
+        DEFAULT_TESTS_TO_RUN.add(StopVideoTest.class.getSimpleName());
+        DEFAULT_TESTS_TO_RUN.add(SwitchVideoTests.class.getSimpleName());
+        DEFAULT_TESTS_TO_RUN.add(EtherpadTests.class.getSimpleName());
+        DEFAULT_TESTS_TO_RUN.add(LockRoomTest.class.getSimpleName());
+        // doing the same test two more times to be sure it is
+        // not a problem, as there was reported an issue about that
+        // https://github.com/jitsi/jitsi-meet/issues/83
+        DEFAULT_TESTS_TO_RUN.add(LockRoomTest.class.getSimpleName());
+        DEFAULT_TESTS_TO_RUN.add(LockRoomTest.class.getSimpleName());
 
-        String testsToRun = System.getProperty("jitsi-meet.tests.toRun");
+        DEFAULT_TESTS_TO_RUN.add(UDPTest.class.getSimpleName());
+        DEFAULT_TESTS_TO_RUN.add(TCPTest.class.getSimpleName());
 
-        if(testsToRun == null || testsToRun.equalsIgnoreCase("all"))
+        DEFAULT_TESTS_TO_RUN.add(ActiveSpeakerTest.class.getSimpleName());
+        DEFAULT_TESTS_TO_RUN.add(StartMutedTest.class.getSimpleName());
+
+        DEFAULT_TESTS_TO_RUN.add(DisplayNameTest.class.getSimpleName());
+        DEFAULT_TESTS_TO_RUN.add(DataChannelTest.class.getSimpleName());
+        DEFAULT_TESTS_TO_RUN.add(ContactListTest.class.getSimpleName());
+    }
+
+    /**
+     * Gets a list of (the simple class names of) the {@code TestCase}s to run.
+     * The returned value includes the {@code TestCase}s specified by the
+     * property {@link #TESTS_TO_RUN_PNAME} (defaults to
+     * {@link #DEFAULT_TESTS_TO_RUN} and excludes the {@code TestCase}s
+     * specified by the property {@link #TESTS_TO_EXCLUDE_PNAME} (if a value is
+     * assigned to the respective property).
+     *
+     * @return a list of (the simple class names of) the {@code TestCase}s to
+     * run
+     */
+    private static List<String> getTestsToRun()
+    {
+        List<String> testsToRun = new LinkedList<String>();
+
+        // Add the tests which are to run.
+        String testsToRunString = System.getProperty(TESTS_TO_RUN_PNAME);
+
+        if (testsToRunString == null
+                || testsToRunString.equalsIgnoreCase("all"))
         {
-            suite.addTest(SetupConference.suite());
-
-            suite.addTest(ChangeAvatarTest.suite());
-            suite.addTest(MuteTest.suite());
-            suite.addTest(StopVideoTest.suite());
-            suite.addTest(SwitchVideoTests.suite());
-            suite.addTest(EtherpadTests.suite());
-            suite.addTest(LockRoomTest.suite());
-            // doing the same test two more times to be sure it is
-            // not a problem, as there was reported an issue about that
-            // https://github.com/jitsi/jitsi-meet/issues/83
-            suite.addTest(LockRoomTest.suite());
-            suite.addTest(LockRoomTest.suite());
-
-            // enable TCP test only if explicitly set from user
-            if(Boolean.getBoolean(TCPTest.JITSI_MEET_SUDO_CONFIGED_PROP))
-                suite.addTest(TCPTest.suite());
-
-            suite.addTest(ActiveSpeakerTest.suite());
-
-            suite.addTest(StartMutedTest.suite());
-
-            suite.addTestSuite(DisposeConference.class);
+            testsToRun.addAll(DEFAULT_TESTS_TO_RUN);
         }
         else
         {
-            // it is a comma separated list of class names
-            StringTokenizer tokens = new StringTokenizer(testsToRun, ",");
-            while(tokens.hasMoreTokens())
+            StringTokenizer tokens = new StringTokenizer(testsToRunString, ",");
+
+            while (tokens.hasMoreTokens())
             {
-                String testName = tokens.nextToken();
-                // class names are relative to this package
-                String className = "org.jitsi.meet.test." + testName;
-
-                try
-                {
-                    Class<? extends TestCase> cl
-                        = Class.forName(className).asSubclass(TestCase.class);
-
-                    Method suiteMethod = null;
-                    for(Method m : cl.getDeclaredMethods())
-                    {
-                        if(m.getName().equals("suite"))
-                        {
-                            suiteMethod = m;
-                            break;
-                        }
-                    }
-
-                    // if suite method exists use it
-                    if(suiteMethod != null)
-                    {
-                        Object test = suiteMethod.invoke(null);
-                        suite.addTest((Test)test);
-                    }
-                    else
-                    {
-                        // otherwise just use the class
-                        suite.addTestSuite(cl);
-                    }
-                }
-                catch(Throwable t)
-                {
-                    t.printStackTrace();
-                }
+                testsToRun.add(tokens.nextToken());
             }
         }
 
+        // Remove the tests which are to be excluded i.e. to not run.
+        String testsToExclude = System.getProperty(TESTS_TO_EXCLUDE_PNAME);
+
+        if (testsToExclude != null)
+        {
+            StringTokenizer tokens = new StringTokenizer(testsToExclude, ",");
+
+            while (tokens.hasMoreTokens())
+            {
+                String test = tokens.nextToken();
+                while (testsToRun.remove(test));
+            }
+        }
+
+        // SetupConference and DisposeConference must always be run exactly
+        // once in the beginning and end of the tests. They could potentially be
+        // moved to setUp() and tearDown().
+        while (testsToRun.remove(SetupConference.class.getSimpleName()));
+        while (testsToRun.remove(DisposeConference.class.getSimpleName()));
+        testsToRun.add(0, SetupConference.class.getSimpleName());
+        testsToRun.add(DisposeConference.class.getSimpleName());
+
+        return testsToRun;
+    }
+
+    /**
+     * Sets the audio file to be streamed through a fake audio device by the
+     * conference participants.
+     */
+    private static void setFakeAudioStreamFile()
+    {
         String fakeStreamAudioFile
             = System.getProperty(ConferenceFixture.FAKE_AUDIO_FNAME_PROP);
 
         if (fakeStreamAudioFile == null)
         {
-            File file = new File("resources/fakeAudioStream.wav");
-            fakeStreamAudioFile = file.getAbsolutePath();
+            fakeStreamAudioFile
+                = new File("resources/fakeAudioStream.wav").getAbsolutePath();
         }
 
         ConferenceFixture.setFakeStreamAudioFile(fakeStreamAudioFile);
+    }
+
+    /**
+     * Gets (a suite of) the tests to run. If the property
+     * {@code jitsi-meet.tests.toRun} exists, we use its value to add only the
+     * tests it mentions.
+     *
+     * @return (a suite of) the tests to run
+     */
+    public static TestSuite suite()
+    {
+        List<String> testsToRun = getTestsToRun();
+        System.err.println("Will run the following tests: " + testsToRun);
+        TestSuite suite = suite(testsToRun);
+
+        setFakeAudioStreamFile();
+
+        return suite;
+    }
+
+    /**
+     * Initializes a new {@code TestSuite} instance from a specific sequence of
+     * test cases.
+     *
+     * @param testsToRun the simple class names of the {@code TestCase}s which
+     * comprise the new {@code TestSuite} instance
+     * @return a new {@code TestSuite} instance which consists of the specified
+     * {@code testsToRun}
+     */
+    private static TestSuite suite(List<String> testsToRun)
+    {
+        String packageName = TestsRunner.class.getPackage().getName();
+        TestSuite suite = new TestSuite();
+
+        for (String testName : testsToRun)
+        {
+            // class names are relative to this package
+            String className = packageName + "." + testName;
+
+            try
+            {
+                Class<? extends TestCase> cl
+                    = Class.forName(className).asSubclass(TestCase.class);
+
+                Method suiteMethod = null;
+                for(Method m : cl.getDeclaredMethods())
+                {
+                    if(m.getName().equals("suite"))
+                    {
+                        suiteMethod = m;
+                        break;
+                    }
+                }
+
+                // if suite method exists use it
+                if(suiteMethod != null)
+                {
+                    Object test = suiteMethod.invoke(null);
+                    suite.addTest((Test)test);
+                }
+                else
+                {
+                    // otherwise just use the class
+                    suite.addTestSuite(cl);
+                }
+            }
+            catch(Throwable t)
+            {
+                System.err.println("Not running " + testName);
+                t.printStackTrace();
+            }
+        }
 
         return suite;
     }

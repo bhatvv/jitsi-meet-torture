@@ -17,6 +17,7 @@ package org.jitsi.meet.test;
 
 import junit.framework.*;
 import org.jitsi.meet.test.util.*;
+import org.openqa.selenium.*;
 
 /**
  * To stop the video on owner and participant side.
@@ -57,9 +58,12 @@ public class StopVideoTest
      */
     public void stopVideoOnOwnerAndCheck()
     {
-        MeetUIUtils.clickOnToolbarButton(ConferenceFixture.getOwner(), "video");
+        System.err.println("Start stopVideoOnOwnerAndCheck.");
 
-        TestUtils.waitsForElementByXPath(
+        MeetUIUtils.clickOnToolbarButton(ConferenceFixture.getOwner(),
+            "toolbar_button_camera");
+
+        TestUtils.waitForElementByXPath(
             ConferenceFixture.getSecondParticipant(),
             "//span[@class='videoMuted']/i[@class='icon-camera-disabled']", 5);
     }
@@ -69,11 +73,18 @@ public class StopVideoTest
      */
     public void startVideoOnOwnerAndCheck()
     {
-        MeetUIUtils.clickOnToolbarButton(ConferenceFixture.getOwner(), "video");
+        System.err.println("Start startVideoOnOwnerAndCheck.");
 
-        TestUtils.waitsForElementNotPresentByXPath(
+        MeetUIUtils.clickOnToolbarButton(ConferenceFixture.getOwner(),
+            "toolbar_button_camera");
+
+        // make sure we check at the remote videos on the second participant
+        // side, otherwise if local is muted will fail
+        TestUtils.waitForElementNotPresentByXPath(
             ConferenceFixture.getSecondParticipant(),
-            "//span[@class='videoMuted']/i[@class='icon-camera-disabled']", 5);
+            "//span[starts-with(@id, 'participant_')]"
+                + "/span[@class='videoMuted']"
+                + "/i[@class='icon-camera-disabled']", 10);
     }
 
     /**
@@ -81,10 +92,12 @@ public class StopVideoTest
      */
     public void stopVideoOnParticipantAndCheck()
     {
-        MeetUIUtils.clickOnToolbarButton(
-            ConferenceFixture.getSecondParticipant(), "video");
+        System.err.println("Start stopVideoOnParticipantAndCheck.");
 
-        TestUtils.waitsForElementByXPath(
+        MeetUIUtils.clickOnToolbarButton(
+            ConferenceFixture.getSecondParticipant(), "toolbar_button_camera");
+
+        TestUtils.waitForElementByXPath(
             ConferenceFixture.getOwner(),
             "//span[@class='videoMuted']/i[@class='icon-camera-disabled']", 5);
     }
@@ -94,10 +107,12 @@ public class StopVideoTest
      */
     public void startVideoOnParticipantAndCheck()
     {
-        MeetUIUtils.clickOnToolbarButton(
-            ConferenceFixture.getSecondParticipant(), "video");
+        System.err.println("Start startVideoOnParticipantAndCheck.");
 
-        TestUtils.waitsForElementNotPresentByXPath(
+        MeetUIUtils.clickOnToolbarButton(
+            ConferenceFixture.getSecondParticipant(), "toolbar_button_camera");
+
+        TestUtils.waitForElementNotPresentByXPath(
             ConferenceFixture.getOwner(),
             "//span[@class='videoMuted']/i[@class='icon-camera-disabled']", 5);
     }
@@ -110,30 +125,66 @@ public class StopVideoTest
      */
     public void stopOwnerVideoBeforeSecondParticipantJoins()
     {
-        ConferenceFixture.quit(ConferenceFixture.getSecondParticipant());
+        System.err.println("Start stopOwnerVideoBeforeSecondParticipantJoins.");
+
+        ConferenceFixture.close(ConferenceFixture.getSecondParticipant());
 
         // just in case wait
-        TestUtils.waits(1000);
+        TestUtils.waitMillis(1000);
 
-        MeetUIUtils.clickOnToolbarButton(ConferenceFixture.getOwner(), "video");
+        MeetUIUtils.clickOnToolbarButton(ConferenceFixture.getOwner(),
+            "toolbar_button_camera");
 
-        ConferenceFixture.startParticipant();
+        TestUtils.waitMillis(500);
 
-        ConferenceFixture.checkParticipantToJoinRoom(
-            ConferenceFixture.getSecondParticipant(), 10);
+        WebDriver secondParticipant
+            = ConferenceFixture.startSecondParticipant();
 
-        ConferenceFixture.waitsParticipantToJoinConference(
-            ConferenceFixture.getSecondParticipant());
+        ConferenceFixture.waitForParticipantToJoinMUC(secondParticipant, 10);
+        ConferenceFixture.waitForIceCompleted(secondParticipant);
 
-        TestUtils.waitsForElementByXPath(
-            ConferenceFixture.getSecondParticipant(),
-            "//span[@class='videoMuted']/i[@class='icon-camera-disabled']", 5);
+        TestUtils.waitForElementByXPath(
+            secondParticipant,
+            "//span[@class='videoMuted']/i[@class='icon-camera-disabled']",
+            5);
+
+        // just debug messages
+        {
+            String ownerJid = (String) ((JavascriptExecutor)
+                ConferenceFixture.getOwner())
+                .executeScript("return APP.xmpp.myJid();");
+
+            String streamByJid = "APP.RTC.remoteStreams['" + ownerJid + "']";
+            System.err.println("Owner jid: " + ownerJid);
+
+            Object streamExist = ((JavascriptExecutor)secondParticipant)
+                .executeScript("return " + streamByJid + " != undefined;");
+            System.err.println("Stream : " + streamExist);
+
+            if (streamExist != null && streamExist.equals(Boolean.TRUE))
+            {
+                Object videoStreamExist
+                    = ((JavascriptExecutor)secondParticipant).executeScript(
+                        "return " + streamByJid + "['Video'] != undefined;");
+                System.err.println("Stream exist : " + videoStreamExist);
+
+                if (videoStreamExist != null && videoStreamExist
+                    .equals(Boolean.TRUE))
+                {
+                    Object videoStreamMuted
+                        = ((JavascriptExecutor) secondParticipant)
+                            .executeScript(
+                                "return " + streamByJid + "['Video'].muted;");
+                    System.err.println("Stream muted : " + videoStreamMuted);
+                }
+            }
+        }
 
         // now lets start video for owner
         startVideoOnOwnerAndCheck();
 
         // just in case wait
-        TestUtils.waits(1500);
+        TestUtils.waitMillis(1500);
     }
 
 }

@@ -20,6 +20,8 @@ import org.jitsi.meet.test.util.*;
 import org.openqa.selenium.*;
 import org.openqa.selenium.support.ui.*;
 
+import java.util.*;
+
 /**
  * The tests for active speaker detection feature.
  *
@@ -39,14 +41,13 @@ public class ActiveSpeakerTest
 
     /**
      * Orders the tests.
-     * @return the suite with order tests.
+     * @return the suite with ordered tests.
      */
     public static Test suite()
     {
         TestSuite suite = new TestSuite();
 
-        suite.addTest(
-            new ActiveSpeakerTest("testActiveSpeaker"));
+        suite.addTest(new ActiveSpeakerTest("testActiveSpeaker"));
 
         return suite;
     }
@@ -56,70 +57,56 @@ public class ActiveSpeakerTest
      */
     public void testActiveSpeaker()
     {
-        // Start 3rd peer
-        setupThirdParticipant();
+        System.err.println("Start testActiveSpeaker.");
+
+        WebDriver owner = ConferenceFixture.getOwner();
+
+        // skip if we are not chrome
+        if (ConferenceFixture.getBrowserType(owner) !=
+                ConferenceFixture.BrowserType.chrome)
+        {
+            return;
+        }
+
+        // This test requires a conference of three
+        ConferenceFixture.ensureThreeParticipants();
+
+        WebDriver secondParticipant = ConferenceFixture.getSecondParticipant();
+        WebDriver thirdParticipant = ConferenceFixture.getThirdParticipant();
 
         // Mute all
         muteAllParticipants();
 
         // Owner becomes active speaker - check from 2nd peer's perspective
-        testActiveSpeaker(
-            ConferenceFixture.getOwner(),
-            ConferenceFixture.getSecondParticipant());
-
+        testActiveSpeaker(owner, secondParticipant);
         // 3rd peer becomes active speaker - check from 2nd peer's perspective
-        testActiveSpeaker(
-            ConferenceFixture.getThirdParticipant(),
-            ConferenceFixture.getSecondParticipant());
-
+        testActiveSpeaker(thirdParticipant, secondParticipant);
         // 2nd peer becomes active speaker - check from owner's perspective
-        testActiveSpeaker(
-            ConferenceFixture.getSecondParticipant(),
-            ConferenceFixture.getOwner());
+        testActiveSpeaker(secondParticipant, owner);
 
         // Dispose 3rd
-        disposeThirdParticipant();
+        ConferenceFixture.close(thirdParticipant);
 
         // Unmuted owner and the 2nd
         unMuteOwnerAndSecond();
     }
 
-    private void setupThirdParticipant()
-    {
-        new SetupConference("startThirdParticipant")
-            .startThirdParticipant();
-
-        new SetupConference("checkThirdParticipantJoinRoom")
-            .checkThirdParticipantJoinRoom();
-
-        new SetupConference("waitsThirdParticipantToJoinConference")
-            .waitsThirdParticipantToJoinConference();
-
-        new SetupConference("waitForThirdParticipantSendReceiveData")
-            .waitForThirdParticipantSendReceiveData();
-    }
-
     private void muteAllParticipants()
     {
+        System.err.println("Start muteAllParticipants.");
+
         new MuteTest("muteOwnerAndCheck").muteOwnerAndCheck();
-
         new MuteTest("muteParticipantAndCheck").muteParticipantAndCheck();
-
         new MuteTest("muteThirdParticipantAndCheck")
                 .muteThirdParticipantAndCheck();
     }
 
     private void unMuteOwnerAndSecond()
     {
+        System.err.println("Start unMuteOwnerAndSecond.");
+
         new MuteTest("unMuteOwnerAndCheck").unMuteOwnerAndCheck();
-
         new MuteTest("unMuteParticipantAndCheck").unMuteParticipantAndCheck();
-    }
-
-    private void disposeThirdParticipant()
-    {
-        new DisposeConference("disposeThirdParticipant")
-            .disposeThirdParticipant();
     }
 
     /**
@@ -134,38 +121,46 @@ public class ActiveSpeakerTest
      */
     private void testActiveSpeaker(WebDriver activeSpeaker, WebDriver peer2)
     {
+        System.err.println("Start testActiveSpeaker.");
+
         final String speakerEndpoint = MeetUtils.getResourceJid(activeSpeaker);
 
         // Unmute
-        MeetUIUtils.clickOnToolbarButton(activeSpeaker, "mute");
-
-        MeetUIUtils.verifyIsMutedStatus(
-            speakerEndpoint, activeSpeaker, peer2, false);
+        MeetUIUtils.clickOnToolbarButton(activeSpeaker, "toolbar_button_mute");
+        MeetUIUtils.assertMuteIconIsDisplayed(
+                peer2,
+                MeetUtils.getResourceJid(activeSpeaker),
+                false,
+                false, //audio
+                speakerEndpoint);
 
         // Verify that the user is now an active speaker from peer2 perspective
         try
         {
-            new WebDriverWait(peer2, 10)
-                .until(new ExpectedCondition<Boolean>()
-                {
-                    public Boolean apply(WebDriver d)
+            new WebDriverWait(peer2, 10).until(
+                    new ExpectedCondition<Boolean>()
                     {
-                        return speakerEndpoint.equals(
-                            MeetUIUtils.getLargeVideoResource(d));
-                    }
-                });
+                        public Boolean apply(WebDriver d)
+                        {
+                            return speakerEndpoint.equals(
+                                MeetUIUtils.getLargeVideoResource(d));
+                        }
+                    });
         }
         catch (TimeoutException exc)
         {
             assertEquals(
-                "Active speaker not displayed on large video",
+                "Active speaker not displayed on large video " + new Date(),
                 speakerEndpoint, MeetUIUtils.getLargeVideoResource(peer2));
         }
 
         // Mute back again
-        MeetUIUtils.clickOnToolbarButton(activeSpeaker, "mute");
-
-        MeetUIUtils.verifyIsMutedStatus(
-            speakerEndpoint, activeSpeaker, peer2, true);
+        MeetUIUtils.clickOnToolbarButton(activeSpeaker, "toolbar_button_mute");
+        MeetUIUtils.assertMuteIconIsDisplayed(
+                peer2,
+                MeetUtils.getResourceJid(activeSpeaker),
+                true,
+                false, //audio
+                speakerEndpoint);
     }
 }

@@ -65,6 +65,8 @@ public class SwitchVideoTests
      */
     public void ownerClickOnLocalVideoAndTest()
     {
+        System.err.println("Start ownerClickOnLocalVideoAndTest.");
+
         clickOnLocalVideoAndTest(ConferenceFixture.getOwner());
     }
 
@@ -74,29 +76,44 @@ public class SwitchVideoTests
      */
     private void clickOnLocalVideoAndTest(WebDriver driver)
     {
-        // click on local
-        String localVideoSrc = driver.findElement(
-            By.xpath("//span[@id='localVideoWrapper']/video"))
-            .getAttribute("src");
+        System.err.println("Start clickOnLocalVideoAndTest.");
 
+        WebElement localVideoElem = driver.findElement(
+            By.xpath("//span[@id='localVideoWrapper']/video"));
+
+        String localVideoSrc = localVideoElem.getAttribute("src");
+
+        // click on local
         driver.findElement(By.className("focusindicator")).click();
 
-        TestUtils.waits(1000);
+        TestUtils.waitMillis(1000);
 
-        // test is this the video seen
-        assertEquals("Video didn't change to local",
-            localVideoSrc, getLargeVideoSource(driver));
+        if(ConferenceFixture.getBrowserType(driver).equals(
+            ConferenceFixture.BrowserType.firefox))
+        {
+            String localVideoId = localVideoElem.getAttribute("id");
+
+            assertTrue("Video didn't change to local",
+                ffCheckVideoDisplayedOnLarge(driver, localVideoId));
+        }
+        else
+        {
+            // test is this the video seen
+            assertEquals("Video didn't change to local",
+                localVideoSrc, getLargeVideoSource(driver));
+        }
     }
 
     /**
      * Returns the source of the large video currently shown.
      * @return the source of the large video currently shown.
      */
-    private String getLargeVideoSource(WebDriver driver)
+    private static String getLargeVideoSource(WebDriver driver)
     {
-        return driver.findElement(By.xpath(
-            "//div[@id='largeVideoContainer']/video[@id='largeVideo']"))
-                .getAttribute("src");
+        // FIXME searching for <video> will fail with Temasys plugin where
+        // <object> elements are used
+        return driver.findElement(
+            By.xpath("//video[@id='largeVideo']")).getAttribute("src");
     }
 
     /**
@@ -105,6 +122,8 @@ public class SwitchVideoTests
      */
     public void ownerClickOnRemoteVideoAndTest()
     {
+        System.err.println("Start ownerClickOnRemoteVideoAndTest.");
+
         clickOnRemoteVideoAndTest(ConferenceFixture.getOwner());
     }
 
@@ -113,6 +132,8 @@ public class SwitchVideoTests
      */
     public void ownerUnpinRemoteVideoAndTest()
     {
+        System.err.println("Start ownerUnpinRemoteVideoAndTest.");
+
         unpinRemoteVideoAndTest(
             ConferenceFixture.getOwner(),
             ConferenceFixture.getSecondParticipant());
@@ -124,6 +145,8 @@ public class SwitchVideoTests
      */
     public void participantUnpinRemoteVideo()
     {
+        System.err.println("Start participantUnpinRemoteVideo.");
+
         unpinRemoteVideoAndTest(
             ConferenceFixture.getSecondParticipant(),
             ConferenceFixture.getOwner());
@@ -140,6 +163,8 @@ public class SwitchVideoTests
      */
     private void unpinRemoteVideoAndTest(WebDriver host, WebDriver peer)
     {
+        System.err.println("Start unpinRemoteVideoAndTest.");
+
         // Peer's endpoint ID
         String peerEndpointId = MeetUtils.getResourceJid(peer);
 
@@ -160,7 +185,7 @@ public class SwitchVideoTests
         // Wait for the video to unpin
         try
         {
-            TestUtils.waitsForElementNotPresentByXPath(
+            TestUtils.waitForElementNotPresentByXPath(
                 host, pinnedThumbXpath, 2);
         }
         catch (TimeoutException exc)
@@ -172,20 +197,30 @@ public class SwitchVideoTests
     /**
      * Clicks on the remote video thumbnail and checks whether the large video
      * is the remote one.
+     *
+     * @param driver
      */
-    private void clickOnRemoteVideoAndTest(WebDriver driver)
+    public static void clickOnRemoteVideoAndTest(WebDriver driver)
     {
+        System.err.println("Start clickOnRemoteVideoAndTest.");
+
         // first wait for remote video to be visible
         String remoteThumbXpath
             = "//span[starts-with(@id, 'participant_') " +
-            "           and contains(@class,'videocontainer')]";
+            " and contains(@class,'videocontainer')]";
         // has the src attribute, those without it is the videobridge video tag
         // which is not displayed, it is used for rtcp
         String remoteThumbVideoXpath
             = remoteThumbXpath
-                + "/video[starts-with(@id, 'remoteVideo_') and @src]";
+                + "/video[starts-with(@id, 'remoteVideo_')";
 
-        TestUtils.waitsForElementByXPath(
+        if(ConferenceFixture.getBrowserType(driver).equals(
+                ConferenceFixture.BrowserType.firefox))
+            remoteThumbVideoXpath += "]";
+        else
+            remoteThumbVideoXpath += " and @src]";
+
+        TestUtils.waitForElementByXPath(
             driver,
             remoteThumbVideoXpath,
             5
@@ -200,16 +235,45 @@ public class SwitchVideoTests
         driver.findElement(By.xpath(remoteThumbXpath))
             .click();
 
-        TestUtils.waits(1000);
+        TestUtils.waitMillis(1000);
 
-        // Obtain the remote video src *after* we have clicked the thumbnail
-        // and have waited. With simulcast enabled, the remote stream may
-        // change.
-        String remoteVideoSrc = remoteThumb.getAttribute("src");
+        if(ConferenceFixture.getBrowserType(driver).equals(
+            ConferenceFixture.BrowserType.firefox))
+        {
+            String remoteVideoId = remoteThumb.getAttribute("id");
 
-        // test is this the video seen
-        assertEquals("Video didn't change to remote one",
-            remoteVideoSrc, getLargeVideoSource(driver));
+            assertTrue("Video didn't change to remote one",
+                ffCheckVideoDisplayedOnLarge(driver, remoteVideoId));
+        }
+        else
+        {
+            // Obtain the remote video src *after* we have clicked the thumbnail
+            // and have waited. With simulcast enabled, the remote stream may
+            // change.
+            String remoteVideoSrc = remoteThumb.getAttribute("src");
+
+            // test is this the video seen
+            assertEquals("Video didn't change to remote one",
+                remoteVideoSrc, getLargeVideoSource(driver));
+        }
+    }
+
+    /**
+     * Checks whether video with id is displayed on the large video.
+     * @param driver the driver
+     * @param videoID the video
+     * @return
+     */
+    private static boolean ffCheckVideoDisplayedOnLarge(
+        WebDriver driver, String videoID)
+    {
+        Object res = ((JavascriptExecutor) driver)
+            .executeScript(
+                "return document.getElementById('" + videoID
+                    + "').mozSrcObject "
+                    + "== document.getElementById('largeVideo').mozSrcObject;");
+
+        return  res != null && res.equals(Boolean.TRUE);
     }
 
     /**
@@ -218,6 +282,8 @@ public class SwitchVideoTests
      */
     public void participantClickOnLocalVideoAndTest()
     {
+        System.err.println("Start participantClickOnLocalVideoAndTest.");
+
         clickOnLocalVideoAndTest(ConferenceFixture.getSecondParticipant());
     }
 
@@ -227,6 +293,8 @@ public class SwitchVideoTests
      */
     public void participantClickOnRemoteVideoAndTest()
     {
+        System.err.println("Start participantClickOnRemoteVideoAndTest.");
+
         clickOnRemoteVideoAndTest(ConferenceFixture.getSecondParticipant());
     }
 

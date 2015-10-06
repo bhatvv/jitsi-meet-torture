@@ -18,6 +18,8 @@ package org.jitsi.meet.test.util;
 import org.openqa.selenium.*;
 import org.openqa.selenium.support.ui.*;
 
+import java.util.*;
+
 /**
  * Utility class.
  * @author Damian Minkov
@@ -58,12 +60,13 @@ public class TestUtils
     }
 
     /**
-     * Waits for a boolean value of javascript variable.
+     * Waits until a javascript expression evaluates to {@code true}.
      * @param participant where we check (poll)
-     * @param scriptToExecute the script that returns the boolean variable.
+     * @param scriptToExecute the javascript to execute and expect a boolean
+     * value from.
      * @param timeout time to wait in seconds
      */
-    public static void waitsForBoolean(
+    public static void waitForBoolean(
         final WebDriver participant,
         final String scriptToExecute,
         long timeout)
@@ -81,13 +84,14 @@ public class TestUtils
     }
 
     /**
-     * Waits a javascript String variable to become <tt>expectedResult</tt>.
-     * @param participant where we check
-     * @param scriptToExecute the script that returns the String variable.
-     * @param expectedResult the expected value
-     * @param timeout time to wait for the change in seconds
+     * Waits until a javascript expression evaluates to a String equal to
+     * <tt>expectedResult</tt>.
+     * @param participant the {@code WebDriver} instance.
+     * @param scriptToExecute the javascript code to execute.
+     * @param expectedResult the expected value.
+     * @param timeout timeout in seconds.
      */
-    public static void waitsForEqualsStrings(
+    public static void waitForStrings(
         final WebDriver participant,
         final String scriptToExecute,
         final String expectedResult,
@@ -108,33 +112,33 @@ public class TestUtils
     }
 
     /**
-     * Waits till an element becomes available.
-     * @param participant where we check
+     * Waits until an element becomes available.
+     * @param participant the {@code WebDriver}.
      * @param xpath the xpath to search for the element
      * @param timeout the time to wait for the element in seconds.
      */
-    public static void waitsForElementByXPath(
+    public static void waitForElementByXPath(
         WebDriver participant,
         final String xpath,
         long timeout)
     {
         new WebDriverWait(participant, timeout)
             .until(new ExpectedCondition<Boolean>()
-        {
-            public Boolean apply(WebDriver d)
             {
-                return !d.findElements(By.xpath(xpath)).isEmpty();
-            }
-        });
+                public Boolean apply(WebDriver d)
+                {
+                    return !d.findElements(By.xpath(xpath)).isEmpty();
+                }
+            });
     }
 
     /**
-     * Waits till an element becomes unavailable.
-     * @param participant where we check
+     * Waits until an element becomes unavailable.
+     * @param participant the {@code WebDriver}.
      * @param xpath the xpath to search for the element
      * @param timeout the time to wait for the element to disappear in seconds.
      */
-    public static void waitsForElementNotPresentByXPath(
+    public static void waitForElementNotPresentByXPath(
         WebDriver participant,
         final String xpath,
         long timeout)
@@ -151,12 +155,45 @@ public class TestUtils
     }
 
     /**
-     * Waits till an element becomes available and displayed.
-     * @param participant where we check
+     * Waits until an element becomes unavailable or not displayed.
+     * @param participant the {@code WebDriver}.
+     * @param xpath the xpath to search for the element
+     * @param timeout the time to wait for the element to disappear in seconds.
+     */
+    public static void waitForElementNotPresentOrNotDisplayedByXPath(
+        WebDriver participant,
+        final String xpath,
+        long timeout)
+    {
+        new WebDriverWait(participant, timeout)
+            .until(new ExpectedCondition<Boolean>()
+            {
+                public Boolean apply(WebDriver d)
+                {
+                    List<WebElement> elems = d.findElements(By.xpath(xpath));
+
+                    // element missing
+                    if (elems.isEmpty())
+                        return true;
+
+                    // let's check whether all elements are not displayed
+                    for (WebElement e : elems)
+                    {
+                        if(e.isDisplayed())
+                            return false;
+                    }
+                    return true;
+                }
+            });
+    }
+
+    /**
+     * Waits until an element becomes available and displayed.
+     * @param participant the {@code WebDriver}.
      * @param xpath the xpath to search for the element
      * @param timeout the time to wait for the element in seconds.
      */
-    public static void waitsForDisplayedElementByXPath(
+    public static void waitForDisplayedElementByXPath(
         WebDriver participant,
         final String xpath,
         long timeout)
@@ -173,12 +210,34 @@ public class TestUtils
     }
 
     /**
-     * Waits till an element becomes available and displayed.
-     * @param participant where we check
+     * Waits until an element is not displayed.
+     * @param participant the {@code WebDriver}.
+     * @param xpath the xpath to search for the element
+     * @param timeout the time to wait for the element in seconds.
+     */
+    public static void waitForNotDisplayedElementByXPath(
+        WebDriver participant,
+        final String xpath,
+        long timeout)
+    {
+        new WebDriverWait(participant, timeout)
+            .until(new ExpectedCondition<Boolean>()
+            {
+                public Boolean apply(WebDriver d)
+                {
+                    WebElement el = d.findElement(By.xpath(xpath));
+                    return el == null || !el.isDisplayed();
+                }
+            });
+    }
+
+    /**
+     * Waits until an element becomes available and displayed.
+     * @param participant the {@code WebDriver}.
      * @param id the id to search for the element
      * @param timeout the time to wait for the element in seconds.
      */
-    public static void waitsForNotDisplayedElementByID(
+    public static void waitForNotDisplayedElementByID(
         WebDriver participant,
         final String id,
         long timeout)
@@ -195,12 +254,12 @@ public class TestUtils
     }
 
     /**
-     * Waits till an element becomes available and displayed.
-     * @param participant where we check
+     * Waits until an element becomes available and displayed.
+     * @param participant the {@code WebDriver}.
      * @param id the id to search for the element
      * @param timeout the time to wait for the element in seconds.
      */
-    public static void waitsForDisplayedElementByID(
+    public static void waitForDisplayedElementByID(
         WebDriver participant,
         final String id,
         long timeout)
@@ -217,10 +276,25 @@ public class TestUtils
     }
 
     /**
-     * Waits the specified <tt>time</tt> milliseconds.
-     * @param time to wait in milliseconds.
+     * Waits until the given condition is fulfilled and fails the currently
+     * running test if this doesn't happen within {@code timeoutSeconds} seconds.
+     * @param participant the {@code WebDriver}.
+     * @param timeoutSeconds the time to wait for the element in seconds.
+     * @param condition the condition to be met.
      */
-    public static void waits(long time)
+    public static void waitForCondition(WebDriver participant,
+                                        int timeoutSeconds,
+                                        ExpectedCondition<?> condition)
+    {
+        (new WebDriverWait(participant, timeoutSeconds)).until(condition);
+    }
+
+    /**
+     * Waits for the specified amount of <tt>time</tt> in milliseconds.
+     * @param time to wait in milliseconds.
+     * XXX Any reason we're not using Thread.sleep() instead of?
+     */
+    public static void waitMillis(long time)
     {
         Object obj = new Object();
         synchronized(obj)
